@@ -3,7 +3,7 @@
 # as the Contiv CNI plugins and network config on
 # each master and worker node in a Kubernetes cluster.
 kind: DaemonSet
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 metadata:
   name: contiv-netplugin
   namespace: kube-system
@@ -20,16 +20,12 @@ spec:
       labels:
         k8s-app: contiv-netplugin
     spec:
-{% if kube_version is version('v1.11.1', '>=') %}
       priorityClassName: system-node-critical
-{% endif %}
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       hostPID: true
       tolerations:
         - operator: Exists
-        # Mark pod as critical for rescheduling (Will have no effect starting with kubernetes 1.12)
-        - key: CriticalAddonsOnly
-          operator: "Exists"
       serviceAccountName: contiv-netplugin
       initContainers:
         - name: contiv-netplugin-init
@@ -82,8 +78,8 @@ spec:
               value: kubernetes
             - name: CONTIV_NETPLUGIN_VTEP_IP
               valueFrom:
-                 fieldRef:
-                    fieldPath: status.podIP
+                fieldRef:
+                  fieldPath: status.podIP
             - name: CONTIV_NETPLUGIN_ETCD_ENDPOINTS
               valueFrom:
                 configMapKeyRef:

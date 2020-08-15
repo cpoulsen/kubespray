@@ -1,14 +1,13 @@
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "coredns{{ coredns_ordinal_suffix | default('') }}"
+  name: "coredns{{ coredns_ordinal_suffix }}"
   namespace: kube-system
   labels:
-    k8s-app: "coredns{{ coredns_ordinal_suffix | default('') }}"
-    kubernetes.io/cluster-service: "true"
+    k8s-app: "kube-dns{{ coredns_ordinal_suffix }}"
     addonmanager.kubernetes.io/mode: Reconcile
-    kubernetes.io/name: "coredns{{ coredns_ordinal_suffix | default('') }}"
+    kubernetes.io/name: "coredns{{ coredns_ordinal_suffix }}"
 spec:
   strategy:
     type: RollingUpdate
@@ -17,32 +16,31 @@ spec:
       maxSurge: 10%
   selector:
     matchLabels:
-      k8s-app: coredns{{ coredns_ordinal_suffix | default('') }}
+      k8s-app: kube-dns{{ coredns_ordinal_suffix }}
   template:
     metadata:
       labels:
-        k8s-app: coredns{{ coredns_ordinal_suffix | default('') }}
+        k8s-app: kube-dns{{ coredns_ordinal_suffix }}
       annotations:
-        seccomp.security.alpha.kubernetes.io/pod: 'docker/default'
+        seccomp.security.alpha.kubernetes.io/pod: 'runtime/default'
     spec:
-{% if kube_version is version('v1.11.1', '>=') %}
       priorityClassName: system-cluster-critical
-{% endif %}
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
       serviceAccountName: coredns
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
-        - key: "CriticalAddonsOnly"
-          operator: "Exists"
+{% if dns_extra_tolerations | default(None) %}
+        {{ dns_extra_tolerations | list | to_nice_yaml(indent=2) | indent(8) }}
+{% endif %}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
           - topologyKey: "kubernetes.io/hostname"
             labelSelector:
               matchLabels:
-                k8s-app: coredns{{ coredns_ordinal_suffix | default('') }}
+                k8s-app: kube-dns{{ coredns_ordinal_suffix }}
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
@@ -93,10 +91,17 @@ spec:
             path: /health
             port: 8080
             scheme: HTTP
-          initialDelaySeconds: 60
           timeoutSeconds: 5
           successThreshold: 1
-          failureThreshold: 5
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8181
+            scheme: HTTP
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 10
       dnsPolicy: Default
       volumes:
         - name: config-volume
@@ -105,3 +110,7 @@ spec:
             items:
             - key: Corefile
               path: Corefile
+{% if dns_etchosts | default(None) %}
+            - key: hosts
+              path: hosts
+{% endif %}

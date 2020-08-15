@@ -1,5 +1,12 @@
 ---
 dependencies:
+  - role: container-engine/kata-containers
+    when:
+      - kata_containers_enabled
+    tags:
+      - container-engine
+      - kata-containers
+
   - role: container-engine/cri-o
     when:
       - container_manager == 'crio'
@@ -7,17 +14,16 @@ dependencies:
       - container-engine
       - crio
 
-  - role: container-engine/rkt
+  - role: container-engine/containerd
     when:
-      - container_manager == 'rkt'
+      - container_manager == 'containerd'
     tags:
       - container-engine
-      - rkt
+      - containerd
 
   - role: container-engine/docker
     when:
-      - container_manager == 'docker' or container_manager == "rkt"
+      - container_manager == 'docker'
     tags:
       - container-engine
       - docker
-      - rkt
